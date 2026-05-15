@@ -105,6 +105,24 @@ function writeLog(dir, name, result) {
   );
 }
 
+function summarizeCommandFailure(result) {
+  const outputLines = `${result.stderr}\n${result.stdout}`
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const importantOutputLines = outputLines.filter((line) => (
+    /(^npm error (code|404|ERESOLVE)|No match found|Could not resolve|not found|requested resource|from the root project|peer .+ from|Found:)/i
+  ).test(line));
+  const output = (importantOutputLines.length > 0 ? importantOutputLines : outputLines)
+    .slice(0, 6)
+    .map((line) => line.length > 240 ? `${line.slice(0, 237)}...` : line)
+    .join(" ");
+
+  const exitStatus = result.status === null ? "without an exit status" : `with exit code ${result.status}`;
+  const details = output ? ` ${output}` : "";
+  return `${result.command} failed ${exitStatus}.${details} See install.log for full output.`;
+}
+
 function getInstallCommand(cwd) {
   if (existsSync(join(cwd, "pnpm-lock.yaml"))) {
     return ["pnpm", ["install", "--frozen-lockfile"]];
@@ -403,7 +421,7 @@ async function validateTemplate(browser, templateDir, index) {
   summary.install = install.status === 0 ? "passed" : "failed";
   if (install.status !== 0) {
     summary.failed = true;
-    summary.issues.push("Dependency installation failed.");
+    summary.issues.push(`Dependency installation failed: ${summarizeCommandFailure(install)}`);
     return summary;
   }
 
